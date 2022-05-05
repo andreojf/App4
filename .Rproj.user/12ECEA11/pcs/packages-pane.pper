@@ -1,0 +1,7 @@
+{
+    "installOptions": {
+        "installFromRepository": true,
+        "libraryPath": "C:/Users/jaouedraogo/Documents/R/R-4.1.2/library",
+        "installDependencies": true
+    }
+}

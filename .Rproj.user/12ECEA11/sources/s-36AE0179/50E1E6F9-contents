@@ -1,0 +1,25 @@
+writeExpr <- function(coefs, p, q){
+  
+  expr <- ""
+  
+  # coefnames <- names(coefs)
+  for (i in 1:length(coefs)) {
+    if (i==1){
+      expr <- sprintf("$$\\y_t = (%.04f)\\y_{t-1}",coefs[i])
+    }
+    
+    if (i %in% 2:p){
+      expr <- paste(expr, " + (", round(coefs[i],4), ")\\y_{t-", i, "}", sep = "")
+    }
+    
+    if (i %in% (p+1):(p+q)){
+      expr <- paste(expr, " + (", round(coefs[i],4), ")\\epsilon_{t-", i-p, "}", sep = "")
+    }
+  }
+  
+  expr <- paste(expr, "$$", sep = "")
+  print(expr)
+  
+}
+
+writeExpr(m$coef, 2, 1)

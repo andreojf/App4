@@ -1,0 +1,26 @@
+{
+    "id": "0CB39C03",
+    "path": "~/MyApps/App4/ui.R",
+    "project_path": "ui.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1650884235703.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "320,55",
+        "scrollLine": "299"
+    },
+    "folds": "24|31|49|29|\n66|41|92|42|\n101|41|120|40|\n129|41|169|40|\n180|30|200|26|\n207|30|296|28|\n",
+    "lastKnownWriteTime": 1651749898,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1651749898510,
+    "read_only": false,
+    "read_only_alternatives": []
+}

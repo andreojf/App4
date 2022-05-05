@@ -1,0 +1,1894 @@
+library(shiny)
+library(shinydashboard)
+library(shinyjs)
+library(data.table)
+library(DT)
+library(tidyverse)
+library(readxl)
+library(uuid)
+library(gt)
+
+library(highcharter)
+library(billboarder)
+
+langs <- getOption("highcharter.lang")
+options(highcharter.lang = langs)
+options(highcharter.theme = hc_theme_smpl())
+
+source("helpersR.R")
+source("storeData.R")
+
+
+# INITIALISATIONS ----
+
+# nom du fichier de parametres appétences
+appParamsfilename <- "Indicateursdappetences.xlsx"
+
+# fonction d'extraction des seuils
+getAppRef <- function(df, seuil, ref){
+  
+  switch (seuil,
+          "alert" = df["Seuil alerte"][df["Clé"]== ref],
+          "limit" = df["Seuil limite"][df["Clé"]== ref]
+  )
+}
+
+getAppData <- function(df, ref){
+  as.character(df["Valeur"][df["Clé"]== ref])
+}
+
+getDepotsData <- function(df){
+  df[1,3]
+}
+# ------------------------------------------------------
+
+# chemin vers la base de données
+cat("Chemin vers la base de données...\n")
+sqlitePath <- "REPORTINGS.db"
+cat("database name:", sqlitePath, "\n")
+
+# Nom de la table
+table <- "BRRCV1" # Base Reporting Risque Credit Version 1
+tableInputs <- "BRCINPV1" # Base Risque  Crédit INPuts Version 1
+tableAppet <- "BRCAPPV1"
+tableDepots <- "BRCDEPV1"
+tableTraite <- "BRCTRV1"
+
+# vérifier que la table existance dans la base de données sinon la créer
+isExistTable(tableName = table, sqlitePath = sqlitePath,
+             dataValues = data.frame(
+               row_ID = character(),
+               Arrete = character(),
+               Pays = character(),
+               app1 = character(),
+               app2 = character(),
+               app3 = character(),
+               app4 = character(),
+               app5 = character(),
+               app6 = character(),
+               app7 = character(),
+               app8 = character(),
+               app9 = character(),
+               app10 = character(),
+               app11 = character(),
+               app12 = character(),
+               app13 = character(),
+               app14 = character(),
+               app15 = character(),
+               app16 = character(),
+               app17 = character(),
+               app18 = character(),
+               app19 = character(),
+               app20 = character(),
+               app21 = character(),
+               app22 = character(),
+               app23 = character(),
+               app24 = character(),
+               app25 = character(),
+               app26 = character(),
+               app27 = character(),
+               app28 = character(),
+               R1 = double(),
+               R2 = double(),
+               R3 = double(),
+               R4 = double(),
+               R5 = double(),
+               R6 = double(),
+               R7 = double(),
+               R8 = double(),
+               R9 = double(),
+               R10 = double(),
+               R11 = double(),
+               R12 = double(),
+               R13 = double(),
+               R14 = double(),
+               R15 = double(),
+               R16 = double(),
+               R17 = double(),
+               R18 = double(),
+               R19 = double(),
+               R20 = double(),
+               R21 = double(),
+               R22 = double(),
+               R23 = double(),
+               
+               stringsAsFactors = F
+             ))
+
+# verifier que la table 'BRCINPV1' existe
+isExistTable(tableName = tableInputs, sqlitePath = sqlitePath,
+             dataValues = data.frame(
+               row_ID = character(),
+               AGENCE = character(),
+               CLIENT =	character(), 
+               NOM = character(),
+               GESTIONNAIRE = character(),
+               SEGMENT = character(),
+               SECTEURAMPLITUDE = character(),	
+               SECTEURBCEAO = character(),
+               DATE_COMPTA = character(),
+               SEXE = character(),
+               NOTATION = character(),	
+               DATE_DECL = character(),
+               EFFET = character(),
+               COMPTE1 =	character(), 
+               CT = character(),
+               MT = character(),
+               LT = character(),	
+               IMPAYES = character(),	
+               DOUTEUX = character(),	
+               TRESORERIE = character(),
+               DOUTEUX_292 = character(),
+               DOUTEUX_SIGNATURE = character(),
+               PROVISION = character(),
+               PROVISION_512 = character(),
+               CREDOC = character(),
+               CONFIRME = character(),	
+               CONFIRME_GROUPE = character(),	
+               CAUTION = character(),
+               SIGNATURE = character(),
+               TOTAL_ENG = character(),
+               GARANTIE = character(),
+               GAR_AUTRES = character(),
+               DEPOSIT_ENGAGEM = character(),
+               DEPOSIT_CREDOC = character(),	
+               GAR_FINANCIERES = character(),	
+               GAR_HYPOTHECAIR = character(),	
+               GAR_ENTRE = character(),	
+               GAR_ETAT_ORGAN = character(),
+               GAR_LETTRE = character(),
+               GAR_NANTISSEMENTS = character(),
+               Pays = character(),
+               Restructures = character(),
+               Defaut = integer(),
+               stringsAsFactors = F
+             ))
+
+
+isExistTable(tableName = tableAppet, sqlitePath = sqlitePath,
+             dataValues = data.frame(
+               row_ID = character(),
+               Arrete = character(),
+               Pays = character(),
+               app1 = character(),
+               app2 = character(),
+               app3 = character(),
+               app4 = character(),
+               app5 = character(),
+               app6 = character(),
+               app7 = character(),
+               app8 = character(),
+               app9 = character(),
+               app10 = character(),
+               app11 = character(),
+               app12 = character(),
+               app13 = character(),
+               app14 = character(),
+               app15 = character(),
+               app16 = character(),
+               app17 = character(),
+               app18 = character(),
+               app19 = character(),
+               app20 = character(),
+               app21 = character(),
+               app22 = character(),
+               app23 = character(),
+               app24 = character(),
+               app25 = character(),
+               app26 = character(),
+               app27 = character(),
+               app28 = character(),
+               
+               stringsAsFactors = F
+
+             ))
+# 
+# isExistTable(tableName = , sqlitePath = sqlitePath,
+#              dataValues = data.frame())
+# 
+# isExistTable(tableName = , sqlitePath = sqlitePath,
+#              dataValues = data.frame())
+
+
+### -------------------------------------------
+
+modalDelete <- function(confirm, annuler){
+  showModal(
+    modalDialog(
+      title = h3("Vous êtes sur le point d'effacer des données"),
+      tagList(
+        h4("Etes-vous sûr(e) et certain(e)"),
+        helpText("Assurez-vous d'avoir sélectionner des observations dans le tableau")
+      ),
+      footer = tagList(
+        actionButton(confirm,"Confirmer", class="btn-success"),
+        actionButton(annuler,"Annuler", class="btn btn-danger")
+      )))
+} 
+
+modalAddData <- function(confirm, drop){
+  
+  showModal(
+    modalDialog(
+      title = h3("Vous êtes sur le point d'enregistrer des données"),
+      tagList(
+        h4("Etes-vous sûr(e) et certain(e)"),
+        helpText("Assurez-vous que les onglets 'Synthèse' et 'Indicateurs d'appétence' sont correctement remplis et fiables")
+      ),
+      footer = tagList(
+        actionButton(confirm,"Confirmer", class="btn-success"),
+        actionButton(annuler,"Annuler", class="btn btn-danger")
+      )))
+  
+}
+
+modalAlertRow <- function(){
+  modalDialog(
+    title = h3("ATTENTION !!!"),
+    tagList(
+      h4("Sélectionner au moins une observation avant de continuer..."),
+      helpText("Pour sélectionner, cliquer sur une ou plusieurs lignes dans le tableau :)")
+    ),
+    footer = tagList(
+      modalButton("Fermer")
+    )
+  )
+}
+### -------------------------------------------
+
+blockUI <- function(id, label) {
+  ns <- NS(id)
+  tagList(
+    div(
+      box(solidHeader = T, align="center", width = "100%",
+          h2(textOutput(ns("stat"))),
+          h4(label),
+          hr(),
+          #p(textOutput(ns("alert"))),
+          #actionButton(ns("details"),"Details", class = "btn btn-default btn-xs")
+      )
+    )
+  )
+}
+
+blockServer <- function(id, value, percent) {
+  moduleServer(
+    id,
+    function(input, output, session){
+      
+      # ouvrir le pop-up lorsqu'on appuie sur "Détails" : to drop ----
+      # observeEvent(input$details, {
+      #   showModal(
+      #     modalDialog(
+      #       
+      #     )
+      #   )
+      # }) ----
+      
+      output$stat <- renderText({
+        cat("valeur:", value, "\n")
+        if (percent){
+          scales::percent_format()(value)
+        } else {
+          scales::label_comma(suffix = " M", big.mark = " ", scale = 1e-6)(value)
+        }
+        
+      })
+      
+      # # alert: to drop ----
+      # output$alert <- renderText({
+      #   
+      #   if (input$details > 1){
+      #     paste0("Erreur")
+      #   } else {
+      #     return()
+      #   }
+      # })
+      # 
+      # observe({
+      #   
+      #   # changer la couleur du bouton "Details"
+      #   if (input$details > 1){
+      #     updateActionButton(session, "details", label = "Alerte")
+      #   }
+      #   
+      # }) ----
+    }
+  )
+}
+
+
+# uploader un fichier csv ----
+uploadcsvUI <- function(id, label, multiple){
+  
+  ns <- NS(id)
+  fileInput(ns("upload"),label = label, buttonLabel = "Importer",
+            accept = c(".csv", ".xlsx"), multiple = multiple)
+}
+
+
+uploadcsvServer <- function(id) {
+  moduleServer(
+    id,
+    function(input, output, session) {
+
+      dataframes <- reactive({
+        
+        # s'assurer que le fichier existe
+        req(input$upload)
+        
+        
+        for (i in 1:nrow(input$upload)){
+
+          if (i==1){
+            
+            # donnees "inputs"
+            inputData <- read_excel(input$upload$datapath[i], sheet = "inputs")
+            # donnees "appetence"
+            appetData <- read_excel(input$upload$datapath[i], sheet = "appetences")
+            # donnees "depots"
+            depotsData <- read_excel(input$upload$datapath[i], sheet = "depots")
+            traiteData <- read_excel(input$upload$datapath[i], sheet = "avalsdetraite")
+            
+          } else{
+            inputData <- rbind(inputData, read_excel(input$upload$datapath[i], sheet = "inputs")) 
+            appetData <- rbind(appetData, read_excel(input$upload$datapath[i], sheet = "appetences"))
+            depotsData <- rbind(depotsData, read_excel(input$upload$datapath[i], sheet = "depots"))
+            traiteData <- rbind(traiteData, read_excel(input$upload$datapath[i], sheet = "avalsdetraite"))
+            
+          }
+        }
+        
+        list(inputData = inputData, appetData = appetData, depotsData = depotsData, traiteData = traiteData)
+      })
+      
+      # Return the reactive that yields the data frame
+      return(dataframes)
+    }
+  )    
+}
+
+# MODULE: GESTION DES INDICATEURS D'APPETENCE ----
+appetenceIndicateurUI <- function(id, label){
+  ns <- NS(id)
+  tagList(
+    div(
+      box(solidHeader = T, align="center", width = "100%",
+          h2(textOutput(ns("val"))),
+          h4(label),
+          hr(),
+          uiOutput(ns("alert")) # bouton "satisfaisant" ou "pas
+      )
+    )
+  )
+}
+
+appetenceIndicateurServer <- function(id, x, sign, params){
+  moduleServer(
+    id, 
+    function(input, output, session){
+      
+      output$val <- renderText({
+        req(x)
+        scales::percent_format(0.01)(as.numeric(x))
+      })
+      
+      # seuils
+      valLimit = getAppRef(params, "limit", id)
+      valAlert = getAppRef(params, "alert", id)
+      
+      output$alert <- renderUI({
+        req(x)
+        x = as.numeric(x)
+        if (sign == "<"){
+          
+          if (x > valLimit){
+            actionButton("danger", label = "", width = "50px", 
+                         class = "btn btn-danger", icon = icon("thumbs-down"))
+            
+          } else if (x >= valAlert){
+            actionButton("warning", label = "", width = "50px",
+                         class = "btn btn-warning", icon = icon("thumbs-down"))
+          } else {
+            actionButton("ok", label = "", width = "50px",
+                         class = "btn btn-success", icon = icon("thumbs-up"))
+          }
+          
+        } else {
+          
+          if (x < valLimit){
+            actionButton("danger", label = "", width = "50px", 
+                         class = "btn btn-danger", icon = icon("thumbs-down"))
+            
+          } else if (x <= valAlert){
+            actionButton("warning", label = "", width = "50px",
+                         class = "btn btn-warning", icon = icon("thumbs-down"))
+          } else {
+            actionButton("ok", label = "", width = "50px",
+                         class = "btn btn-success", icon = icon("thumbs-up"))
+          }
+          
+        }
+        
+        
+        
+      })
+    }
+  )
+}
+
+# UI/ ----
+ui <- dashboardPage(
+  
+  dashboardHeader(title = "Reporting Mensuel sur le risque de crédit"),
+  
+  # UI/SIDEBAR ----
+  dashboardSidebar(
+    sidebarMenu(id = "menu",
+      menuItem("Données", tabName = "menudata", icon = icon("database")),
+      menuItem("Synthèse", tabName = "menusynthese", icon = icon("stats", lib = "glyphicon")),
+      menuItem("Indicateurs d'appétence", tabName = "menuappetence", icon = icon("th", lib = "glyphicon")),
+      menuItem("Détails", tabName = "details", icon = icon("search", lib = "glyphicon"))
+    ),
+    hr(),
+    
+    # EST-CE QU'IL S'AGIT DE LA HOLDING
+    radioButtons("isHolding","Vision consolidée ?", 
+                 choices = c("Oui","Non"), inline = T),
+    
+    uiOutput("uilistPays"),
+  
+    hr(),
+    # CREER UN CHAMP ARRETE DES QUE LES DONNEES SONT CHARGEES
+    uiOutput("uiarrete"),
+    
+    # SELECTIONNER UN PAYS
+    uiOutput("uipays"),
+    
+    hr(),
+    # conditional panel pour l'import des données
+    conditionalPanel("input.menu == 'menudata'",
+                     uiOutput("uiUpload")),
+    
+    conditionalPanel("input.menu == 'menusynthese'",
+                     div(
+                       numericInput("synth_depots","Insérer le montant des dépôts", value = NULL),
+                       actionButton("synth_compiler","Compiler")
+                       )
+                     ),
+    
+    # S'il clique sur l'onglet indicateurs d'appétence
+    br(),
+    conditionalPanel("input.menu == 'menuappetence'",
+                     actionButton("btnappetence","Renseigner les indicateurs"))
+    
+    
+    ),
+  
+  
+  dashboardBody(
+    # Inclure shinyjs
+    useShinyjs(),
+    
+    tabItems(
+      
+      # UI/DONNEES ----
+      tabItem(tabName = "menudata",
+              
+              fluidRow(
+                tabBox(id = "tabs", width = 12,
+                       tabPanel(title = "DONNNEES FILIALE(S)",
+                                fluidRow(
+                                  column(12, dataTableOutput("donnees"))
+                                ),
+                                hr(),
+                                fluidRow(
+                                  column(12,
+                                         uiOutput("btnarrange", inline = T), 
+                                         uiOutput("btnstoreInputs", inline = T)
+                                         )
+                                )),
+                       tabPanel(title = "INDICATEURS D'APPETENCE",
+                                fluidRow(
+                                  column(12, tableOutput("appetTable"))
+                                )),
+                       tabPanel(title = "DEPOTS",
+                                fluidRow(
+                                  column(12, tableOutput("depotsTable"))
+                                )),
+                       tabPanel(title = "AVALS DE TRAITE",
+                                fluidRow(
+                                  column(12, tableOutput("traitetable"))
+                                )),
+                       tabPanel(title = "PARAMETRES",
+                                fluidRow(
+                                  column(12, tableOutput("paramsappetence"))
+                                )),
+                       tabPanel(title = "HISTORIQUE",
+                                fluidRow(
+                                  column(12, 
+                                         #actionButton("btnouvrir","Ouvrir la table"),
+                                         actionButton("deleteInputs", "Supprimer des donnees", 
+                                                      icon = icon("trash-alt")),
+                                         hr(),
+                                         dataTableOutput("historique"))
+                                ))
+                       )
+              )
+              
+              
+              ),
+      # UI/SYNTHESE ----
+      tabItem(tabName = "menusynthese",
+              
+              fluidRow(
+                column(4,blockUI("b1", "Engagements directs")),
+                column(4,blockUI("b2", "Engagements indirects")),
+                column(4,blockUI("b3", "Portefeuille global"))
+              ),
+              
+              fluidRow(
+                column(2,blockUI("b4", "Créances Impayés")),
+                column(2,blockUI("b5", "Créances Restructurées")),
+                column(3,blockUI("b6", "Portefeuille Douteux Directs")),
+                column(3,blockUI("b7", "Portefeuille Douteux Indirects")),
+                column(2,blockUI("b8", "CES directes"))
+              ),
+              
+              fluidRow(
+                column(3,blockUI("b9", "Provisions")),
+                column(3,blockUI("b10", "Crédits restructurés")),
+                column(3,blockUI("b11", "Douteux indirects")),
+                column(3,blockUI("b12", "Créances douteuses nettes"))
+              ),
+              
+              fluidRow(
+                column(4,blockUI("b13", "Créances directes en souffrance nettes")),
+                column(4,blockUI("b14", "Volume des 50 plus gros crédits")),
+                column(2,blockUI("b15", "Prêts")),
+                column(2,blockUI("b16", "Dépôts"))
+              ), 
+              hr(),
+              fluidRow(
+                column(4,blockUI("b17", "Crédits restructurés/Engagements directs")),
+                column(4,blockUI("b18", "Douteux Eng. Dir./Engagements Directs")),
+                column(4,blockUI("b19", "CES directes/Total Engagements"))
+              ), 
+              fluidRow(
+                column(3,blockUI("b20", "Taux de provisionnement")),
+                column(3,blockUI("b21", "Taux de dégradation du portefeuille")),
+                column(3,blockUI("b22", "50 plus gros risques/Portefeuille global")),
+                column(3,blockUI("b23", "Ratio Prêts/Dépôts"))
+              )
+            ),
+      
+      
+      # UI/INDICATEURS D'APPETENCE ----
+      tabItem(tabName = "menuappetence",
+              
+              # UI/INDICATEURS D'APPETENCE/INSERER LES INDICATEURS ----
+              shinyjs::hidden(
+                div(id = "enter-indicateurs",
+                    fluidRow(
+                      box(solidHeader = T, width = 12,
+                          column(2, textInput("appInd1","Taux de CDL", value = "-", width = "100%")),
+                          column(2, textInput("appInd2","Taux d’impayés", value = "", width = "100%")),
+                          column(2, textInput("appInd3","Taux Restructurés", value = "", width = "100%")),
+                          column(2, textInput("appInd4","Taux de Créances en souffrance", value = "", width = "100%")),
+                          column(2, textInput("appInd5","Poids du coût net du risque de crédit", value = "", width = "100%")),
+                          column(2, textInput("appInd6","Qualité de la production récente", value = "", width = "100%")),
+                      )
+                    ),
+                    
+                    fluidRow(
+                      box(solidHeader = T, width = 12,
+                          column(2, textInput("appInd7","Taux de couverture du portefeuille", value = "", width = "100%")),
+                          column(2, textInput("appInd8","Taux de couverture par des garanties éligibles ou hypothèque de 1er rang ou 2e rang derrière CORIS HOLDING", value = "", width = "100%")),
+                          column(2, textInput("appInd9","Exposition sur des contreparties non Investment grade", value = "", width = "100%")),
+                          column(2, textInput("appInd10","Concentration individuelle", value = "", width = "100%")),
+                          column(2, textInput("appInd11","Concentration sectorielle Individuelle", value = "", width = "100%")),
+                          column(2, textInput("appInd12","Concentration sectorielle construction", value = "", width = "100%"))
+                      )
+                    ),
+                    
+                    fluidRow(
+                      box(solidHeader = T, width = 12,
+                          column(2, textInput("appInd13","Concentration Fabrication", value = "", width = "100%")),
+                          column(2, textInput("appInd14","Concentration Commerce", value = "", width = "100%")),
+                          column(2, textInput("appInd15","Concentration Administration publique", value = "", width = "100%")),
+                          column(2, textInput("appInd16","Concentration sur le top 10", value = "", width = "100%")),
+                          column(2, textInput("appInd17","Concentration de l'endettement du client auprès de CORIS HOLDING", value = "", width = "100%")),
+                          column(2, textInput("appInd18","Exposition géographique", value = "", width = "100%"))
+                      )
+                    ),
+                    
+                    fluidRow(
+                      box(solidHeader = T, width = 12,
+                          column(2, textInput("appInd19","Concentration géographique", value = "", width = "100%")),
+                          column(2, textInput("appInd20","Qualité de la contrepartie", value = "", width = "100%")),
+                          column(2, textInput("appInd21","Part des titres dans le bilan", value = "", width = "100%")),
+                          column(2, textInput("appInd22","Concentration des titres detenus ", value = "", width = "100%")),
+                          column(2, textInput("appInd23","Maturite moyenne", value = "", width = "100%")),
+                          column(2, textInput("appInd24","Exposition totale sur un pays", value = "", width = "100%"))
+                      )
+                    ),
+                    
+                    fluidRow(
+                      box(solidHeader = T, width = 12,
+                          column(2, textInput("appInd25","Allocation individuelle de fonds propres", value = "", width = "100%")),
+                          column(2, textInput("appInd26","Allocation sectorielle de fonds propres", value = "", width = "100%")),
+                          column(2, textInput("appInd27","Allocation des fonds propres sur les particuliers", value = "", width = "100%")),
+                          column(2, textInput("appInd28","Allocation des fonds propres sur les Grandes entreprises", value = "", width = "100%"))
+                          
+                      )
+                    ),
+                    
+                    
+
+                    fluidRow(
+                      column(6,
+                             actionButton("compiler","Compiler", width = "100px"),
+                             actionButton("effacer","Effacer", width = "100px")),
+                      column(3,
+                             actionButton("fermer", "Fermer la fenêtre", width = "100%"), offset = 3)
+                      
+                      # column(3,, width = "100%"), offset = 6),
+                      # column(3,, width = "100%"))
+                    ) 
+                )
+              ),
+              
+              br(),
+              
+              # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS ----
+              shinyjs::hidden(
+                div(id = "show-indicateurs",
+                    
+                    # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS/Qualité ----
+                    actionLink("qualite", h2("QUALITE DU PORTEFEUILLE DE CREDIT")),
+                    div(id = "show-indicateurs-qualite",
+                        fluidRow(
+                          column(3, appetenceIndicateurUI("app1","Taux de créances douteuses")),
+                          column(3, appetenceIndicateurUI("app2","Taux de créances impayées")),
+                          column(3, appetenceIndicateurUI("app3","Taux de créances restructurées")),
+                          column(3, appetenceIndicateurUI("app4","Taux de créances en souffrance")),
+                        ), 
+                        fluidRow(
+                          column(3, appetenceIndicateurUI("app5","Poids du coût net du risque de crédit")),
+                          column(3, appetenceIndicateurUI("app6","Qualité de la production récente")),
+                          column(3, appetenceIndicateurUI("app7","Taux de couverture du portefeuille")),
+                          column(3, appetenceIndicateurUI("app8","Taux de couverture du portefeuille par des garanties éligibles ou hypothèque de 1er rang ou 2e rang derrière CORIS HOLDING")),
+                        ),
+                        fluidRow(
+                          column(3, appetenceIndicateurUI("app9","Exposition sur des contreparties non Investment grade"))
+                        )
+                    ),
+                    
+                    # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS/Concentration ----
+                    actionLink("concentration", h2("CONCENTRATION DU PORTEFEUILLE CREDIT")),
+                    div(id = "show-indicateurs-concentration",
+                        fluidRow(
+                          column(3, appetenceIndicateurUI("app10","Concentration individuelle")),
+                          column(3, appetenceIndicateurUI("app11","Concentration sectorielle individuelle")),
+                          column(3, appetenceIndicateurUI("app12","Concentration sectorielle - Construction")),
+                          column(3, appetenceIndicateurUI("app13","Concentration sectorielle - Activité de fabrication")),
+                        ), 
+                        fluidRow(
+                          column(3, appetenceIndicateurUI("app14","Concentration sectorielle - Commerce")),
+                          column(3, appetenceIndicateurUI("app15","Concentration sectorielle - Administration publique")),
+                          column(3, appetenceIndicateurUI("app16","Concentration sur le top 10 clients")),
+                          column(3, appetenceIndicateurUI("app17","Concentration de l'endettement du client auprès de CORIS HOLDING")),
+                        )
+                    ),
+                    
+                    # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS/prets interbancaires ----
+                    actionLink("pretsinterbancaires", h2("PRETS INTERBANCAIRES")),
+                    div(id = "show-indicateurs-pretsinterbancaires",
+                        fluidRow(
+                          column(4, appetenceIndicateurUI("app18","Exposition individuelle")),
+                          column(4, appetenceIndicateurUI("app19","Concentration géographique")),
+                          column(4, appetenceIndicateurUI("app20","Qualité de la contrepartie"))
+                        )
+                    ),
+                    
+                    # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS/portefeuille titres ----
+                    actionLink("portefeuilletitre", h2("PORTEFEUILLE TITRES")),
+                    div(id = "show-indicateurs-portefeuilletitre",
+                        fluidRow(
+                          column(4, appetenceIndicateurUI("app21","Part des titres dans le bilan")),
+                          column(4, appetenceIndicateurUI("app22","Concentration par pays des titres détenus")),
+                          column(4, appetenceIndicateurUI("app23","Maturité moyenne du portefeuille titres")),
+                        )
+                    ),
+                    
+                    # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS/risque pays ----
+                    actionLink("risquepays", h2("RISQUE PAYS")),
+                    div(id = "show-indicateurs-risquepays",
+                        fluidRow(
+                          column(4, appetenceIndicateurUI("app24","Exposition totale sur un pays (hors pays de la filiale"))
+                        )
+                    ),
+                    
+                    # UI/INDICATEURS D'APPETENCE/AFFICHAGE DES INDICATEURS/Allocation des fonds propres réglementaires ----
+                    actionLink("fondspropres", h2("ALLOCATION DES FONDS PROPRES REGLEMENTAIRES")),
+                    div(id = "show-indicateurs-fondspropres",
+                        fluidRow(
+                          column(4, appetenceIndicateurUI("app25","Allocation individuelle de fonds propres réglementaires")),
+                          column(4, appetenceIndicateurUI("app26","Allocation sectorielle de fonds propres réglementaires")),
+                          column(4, appetenceIndicateurUI("app27","Allocation de fonds propres réglementaires sur la clientèle de particuliers")),
+                          column(4, appetenceIndicateurUI("app28","Allocation de fonds propres réglementaires sur la clientèle - Grandes entreprises, Corporate et Institutionnel")),
+                        )
+                    )
+                    )),
+                    
+                    hr(),
+                    fluidRow(
+                      column(12, 
+                             actionButton("saveIndicateurs","Enregistrer les informations"),
+                             actionButton("fermerongIndicateurs", "Ouvrir/fermer les indicateurs"),
+                             actionButton("fermertable", "Ouvrir/Fermer la table"),
+                             actionButton("retireobs", "Retirer une observation", icon("trash-alt"))),
+                      
+                    ),
+                    hr(),
+                    fluidRow(
+                      shinyjs::hidden(
+                        div(id="show-data",
+                            column(12, dataTableOutput("datastored"))
+                        )
+                      )
+                    )
+                ),
+      
+      # UI/DETAILS ----
+      tabItem(tabName = "details", 
+              
+              fluidRow(
+                tabBox(id = "tabsdetails", width = 12,
+                       
+                       # UI/SITUATION DU PORTEFEUILLE ----   
+                       tabPanel(title = "SITUATION DU PORTEFEUILLE",
+                                
+                                actionLink("situationnotation", h3("NOTATION")),
+                                shinyjs::hidden(
+                                  div(id ="situation-notation",
+                                      fluidRow(
+                                        column(6),
+                                        column(6)
+                                      ),
+                                      fluidRow(
+                                        column(6), # 
+                                        column(6)
+                                      )
+                                  )
+                                ),
+                                actionLink("situationsegment", h3("SEGMENT")),
+                                shinyjs::hidden(
+                                  div(id ="situation-segment",
+                                      fluidRow(
+                                        column(5, 
+                                               dataTableOutput("segmenttable"),
+                                               downloadButton("downlsegment", "Exporter en csv")),
+                                        column(7,
+                                               fluidRow(
+                                                 column(4, selectInput("choixsegment","Choix segment",
+                                                                       choices = c(""), multiple = T, selected = NULL)),
+                                                 column(4,selectInput("choixcotation1", "Niveau de Cotation",
+                                                                      choices = c(""), multiple = T, selected = NULL)),
+                                                 column(4,selectInput("choixindicateur1","Indicateur(s)",
+                                                                      choices = c(""), multiple = T, selected = NULL))
+                                               ),
+                                               hr(),
+                                               highchartOutput("segmentchart1", height = "300px"),
+                                               hr(),
+                                               highchartOutput("segmentchart2", height = "300px"))
+                                      )
+                                  )
+                                ),
+                                actionLink("situationbceao", h3("SECTEUR D'ACTIVITE BCEAO")),
+                                shinyjs::hidden(
+                                  div(id ="situation-bceao",
+                                      fluidRow(
+                                        column(5, 
+                                               dataTableOutput("bceaotable"),
+                                               downloadButton("downlBceao", "Exporter en csv")),
+                                        column(7,
+                                               fluidRow(
+                                                 column(4, selectInput("choixbceao","Secteur d'activité",
+                                                                       choices = c(""), multiple = T, selected = NULL)),
+                                                 column(4,selectInput("choixcotation2", "Niveau de Cotation",
+                                                                      choices = c(""), multiple = T, selected = NULL)),
+                                                 column(4,selectInput("choixindicateur2","Indicateur(s)",
+                                                                      choices = c(""), multiple = T, selected = NULL))
+                                               ),
+                                               hr(),
+                                               highchartOutput("bceaochart1", height = "300px"),
+                                               hr(),
+                                               highchartOutput("bceaochart2", height = "300px"))
+                                      )
+                                  )
+                                )
+                       ),
+                       
+                       # UI/DETAILS/DECLASSEMENT ----
+                       tabPanel(title = "DECLASSEMENT",
+                                fluidRow(
+                                  column(6, 
+                                         dataTableOutput("declasstable"),
+                                         hr(),
+                                         downloadButton("downloaddeclasstable","Exporter en csv"))
+                                )),
+                       
+                       # UI/DETAILS/HORSBILAN ----
+                       tabPanel(title = "HORS-BILAN",
+                                fluidRow(
+                                  column(6, 
+                                         dataTableOutput("summaryhorsbilan"),
+                                         hr(),
+                                         downloadButton("downloadsummaryhorsbilan", "Exporter en csv")),
+                                  column(5, billboarderOutput("pie_horsbilan"))
+                                ),
+                                fluidRow(
+                                  column(12, dataTableOutput("horsbilantable"))
+                                ),
+                                hr(),
+                                fluidRow(
+                                  column(12, downloadButton("downloadhorsbilan", "Exporter en csv"))
+                                )),
+                       
+                       # UI/DETAILS/CINQUANTE ----
+                       tabPanel(title = "50 PLUS GROS",
+                                fluidRow(
+                                  column(7, 
+                                         dataTableOutput("summarycinquante"),
+                                         hr(),
+                                         downloadButton("downloadsummarycinquante", "Exporter en csv")),
+                                  column(5, highchartOutput("bar_cinquante"))
+                                ),
+                                fluidRow(
+                                  column(12,dataTableOutput("plusgrostable"))
+                                ),
+                                hr(),
+                                fluidRow(
+                                  column(12, downloadButton("downloadcinquante", "Exporter en csv"))
+                                ))
+                )
+              )
+
+              )
+              
+    )
+  )
+)
+
+
+
+
+
+
+
+
+# SERVER/ ----
+server <- function(input, output, session) {
+  
+  # SERVER/DONNEES ----
+  # data
+  rawData <- uploadcsvServer("uploadcsv")
+  
+  # filtrer les données selon la date d'arrete et le pays
+  inputDatafilt <- reactive({
+    req(rawData())
+    req(input$datearrete)
+    req(input$selectpays)
+    
+    data <- rawData()$inputData %>%
+      filter(DATE_COMPTA == input$datearrete, 
+             Pays %in% input$selectpays) %>%
+      mutate(DATE_COMPTA = as.Date(DATE_COMPTA))
+    data
+  })
+  
+  AppetDatafilt <- reactive({
+    req(rawData())
+    req(input$datearrete)
+    req(input$selectpays)
+    
+    data <- rawData()$appetData %>%
+      filter(Arrete == input$datearrete, 
+             Pays %in% input$selectpays) %>%
+      mutate(Arrete = as.character(Arrete))
+    data
+  })
+  
+  depotsDatafilt <- reactive({
+    req(rawData())
+    req(input$datearrete)
+    req(input$selectpays)
+    
+    data <- rawData()$depotsData %>%
+      filter(Arrete == input$datearrete, 
+             Pays %in% input$selectpays) %>%
+      mutate(Arrete = as.character(Arrete))
+    data
+    
+  })
+  
+  traiteDatafilt <- reactive({
+    
+    req(rawData())
+    req(input$datearrete)
+    req(input$selectpays)
+    
+    data <- rawData()$traiteData %>%
+      filter(Arrete == input$datearrete, 
+             Pays %in% input$selectpays) %>%
+      mutate(Arrete = as.character(Arrete))
+    data
+    
+  })
+  
+  # afficher le bouton nettoyer
+  observeEvent(rawData(), {
+    output$btnarrange <- renderUI({
+      actionButton("arrange_button","Nettoyer la base")
+  
+    })
+  })
+  
+  # la base est nettoyée, alors faire apparaitre le button 'enregistrer dans la base'
+  observeEvent(input$arrange_button, {
+    output$btnstoreInputs <- renderUI({
+      actionButton("storeInputs", "Enregistrer dans la base", icon = icon("database"))
+    })
+  })
+  
+  # Si le client clique sur enregistrer, il va falloir ouvrir un pop-up pour lui demander de confirmer
+  observeEvent(input$storeInputs, {
+    showModal(
+      modalDialog(
+        title = h3("Vous êtes sur le point d'enregistrer des données"),
+        tagList(
+          h4("Etes-vous sûr(e) et certain(e)"),
+        ),
+        footer = tagList(
+          actionButton("confirmaddinputs","Confirmer", class="btn-success"),
+          modalButton("Annuler")
+        )
+      )
+    )
+  })
+
+  # Si l'utilisateur clique sur confirmer, alors enregistrer la base de données
+  observeEvent(input$confirmaddinputs, {
+
+    removeModal()
+    #cat("Data to be stored:", formData(), "\n")
+    #print(formData())
+    dataset <- cleanedData() %>%
+      group_by(Pays, DATE_COMPTA) %>%
+      mutate(row_ID = UUIDgenerate()) %>%
+      ungroup
+    #str(dataset)
+    saveData(dataset, sqlitePath, tableInputs)
+  })
+
+
+  # Si l'utilisateur clique sur 'Supprimer les données', il va falloir ouvrir un pop-up
+  # pour lui demander de saisir les informations nécessaires à la suppression
+  observeEvent(input$deleteInputs, {
+    showModal(
+      modalDialog(
+        title = h3("Vous êtes sur le point de supprimer des données"),
+        tagList(
+          selectInput("arretetodrop","Choisir un ou plusieurs arreté",
+                      choices = unique(historicData()$DATE_COMPTA), selected = NULL),
+          selectInput("paystodrop", "choisir un ou plusieurs pays",
+                      choices = unique(historicData()$Pays), selected = NULL)
+        ),
+        footer = tagList(
+          actionButton("confirmdeleteinputs","Confirmer", class="btn-success"),
+          modalButton("Annuler")
+        )
+      )
+    )
+  })
+
+
+  # Afficher la table des historiques
+  historicData <- reactiveVal(
+    loadData(sqlitePath, table = tableInputs)
+  )
+  
+  observe({
+    rawData()
+    input$arrange_button
+    input$storeInputs
+    input$confirmaddinputs
+    input$confirmdeleteinputs
+    #cat("Actualisation de la table...")
+    newData <- loadData(sqlitePath, table = tableInputs)
+    historicData(newData)
+  })
+  # historicData <- reactiveVal({
+  #   rawData()
+  #   input$arrange_button
+  #   input$storeInputs
+  #   input$confirmaddinputs
+  #   input$confirmdeleteinputs
+  #   #cat("Actualisation de la table...")
+  #   loadData(sqlitePath, table = tableInputs)
+  # })
+
+
+  output$historique <- renderDataTable({
+    datatable(
+      historicData(),
+      options = list(scrollY = "100%",
+                     scrollX = "100%",
+                     deferRender = TRUE)
+    )
+
+  })
+
+  # Mettre automatiquement à jour, les arretes et pays lorsqu'on ouvre le pop-up pour la suppression des données
+  observe({
+    print(unique(historicData()$DATE_COMPTA))
+    print(unique(historicData()$Pays))
+    updateSelectInput(session, "arretetodrop", choices = unique(historicData()$DATE_COMPTA), 
+                      selected = NULL)
+    updateSelectInput(session, "paystodrop",choices = unique(historicData()$Pays))
+  })
+
+  # Si l'utilisateur clique sur confirmer, alors supprimer les données de la base
+  observeEvent(input$confirmdeleteinputs, {
+
+    removeModal()
+    #cat("Data to be stored:", formData(), "\n")
+    #print(formData())
+    deleteData2(input$arretetodrop, input$paystodrop, sqlitePath, tableInputs)
+  })
+  
+  
+  # FIN ----------------------------------------
+  # 
+  output$uiarrete <- renderUI({
+    req(historicData())
+    selectInput("datearrete", "Selectionner une date d'arrete",
+                choices = unique(historicData()$DATE_COMPTA), multiple = T)
+  })
+  
+  output$uipays <- renderUI({
+    
+    req(historicData())
+    # S'il est connecté en tant que Holding
+    
+    selectInput("selectpays", "Choisis ton pays", 
+                choices = unique(historicData()$Pays), multiple = T)
+  })
+  
+  # SI CE N'EST PAS LA HOLDING
+  output$uiUpload <- renderUI({
+    
+    if (input$isHolding == "Oui"){
+      uploadcsvUI("uploadcsv","Importer le fichier", T)
+    } else {
+      uploadcsvUI("uploadcsv","Importer le fichier", F)
+    }
+  })
+  
+  # Si c'est la Holding alors afficher le lien vers les pays disponibles
+  output$uilistPays <- renderUI({
+    if (input$isHolding == "Oui"){
+      actionLink("listPays","Liste Pays disponible")
+    } else {
+      return()
+    }
+    
+  })
+  
+  # arrange data
+  cleanedData <- reactive({
+    
+    # if (input$isHolding == "Oui"){
+    #   dataCleaning(inputDatafilt())
+    # } else {
+    dataCleaning(rawData()$inputData)
+    # }
+    
+  })
+  
+  # observeEvent(input$arrange_button, {
+  #   showModal(
+  #     modalDialog(
+  #       title = "Info",
+  #       paste0("La base a été nettoyée"),
+  #       easyClose = T
+  #     )
+  #   )
+  # })
+  
+  data
+  
+  output$donnees <- renderDataTable({
+    
+    if (!is.null(input$arrange_button)){
+      if (input$arrange_button > 0){
+        df <- cleanedData()
+      } else {
+        df <- rawData()$inputData
+      }
+    } else {
+      df <- rawData()$inputData
+    }
+    DT::datatable(
+      df,
+      options = list(scrollY = "100%",
+                     scrollX = "100%",
+                     deferRender = TRUE
+                     #scroller = TRUE,
+                     # paging = TRUE,
+                     # pageLength = 25,
+                     # buttons = list('excel',
+                     #               list(extend = 'colvis', targets = 0, visible = FALSE)),
+                     #dom = 'lBfrtip',
+                     #fixedColumns = TRUE
+                     ), 
+      rownames = FALSE
+      )
+    })
+  
+  
+  # donnees appétences
+  output$appetTable <- renderTable({
+    rawData()$appetData
+  })
+  
+  # données depots
+  output$depotsTable <- renderTable({
+    rawData()$depotsData
+  })
+  
+  # données avals de traite 
+  output$traitetable <- renderTable({
+    rawData()$traiteData
+  })
+  
+  # SERVER/SYNTHESE ----
+  
+  # tant que l'utilisateur ne renseigne pas le montant de dépots
+  observe({
+    shinyjs::toggleState(id = "synth_compiler", condition = !is.null(input$synth_depots) && input$synth_depots != "")
+  })
+  
+  # calcul des indicateurs de synthèse: tant que l'utilisateur ne clique pas sur compiler
+  # les calculs ne se font pas.
+  indicators <- eventReactive(input$synth_compiler,{
+    req(cleanedData())
+    req(input$datearrete)
+    cat("input$datearrete:", input$datearrete, "\n")
+    cleanedData() %>%
+      synthese(as.character(input$datearrete), input$synth_depots)
+  })
+  
+
+  observe({
+    #req(cleanedData())
+    #cat(str(cleanedData()))
+    #print(summary(cleanedData()))
+    print(indicators())
+  })
+
+  observeEvent(indicators(), {
+    blockServer("b1", indicators()$ENGAGEMENTS_DIRECTS, F)
+    blockServer("b2", indicators()$ENGAGEMENTS_INDIRECTS, F)
+    blockServer("b3", indicators()$PORTEFEUILLE_GLOBAL, F)
+    blockServer("b4", indicators()$CREANCES_IMPAYES, F)
+    blockServer("b5", indicators()$CREDIT_RESTRUCTURES, F)
+    blockServer("b6", indicators()$PFT_DT_ENG_DIRECTS, F)
+    blockServer("b7", indicators()$PFT_DT_ENG_INDIRECTS, F)
+    blockServer("b8", indicators()$CREANCES_SOUFFRAN_DIRECTS, F)
+    blockServer("b9", indicators()$PROVISIONS, F)
+    blockServer("b10", indicators()$PROV_CREDS_RESTRUCTURES, F)
+    blockServer("b11", indicators()$PROV_DT_INDIRECTS, F)
+    blockServer("b12", indicators()$PROV_CREANCES_DT_DIRECTS, F)
+    blockServer("b13", indicators()$CREANC_DIRECTS_SOUFFR_NETTES, F)
+    blockServer("b14", indicators()$VOL_TOP50, F)
+    blockServer("b15", indicators()$PRETS, F)
+    blockServer("b16", indicators()$DEPOTS, F)
+    blockServer("b17", indicators()$TAUX_CRED_RESTRUCTURE, percent = T)
+    blockServer("b18", indicators()$TAUX_DOUTEUX_DIRECTS, T)
+    blockServer("b19", indicators()$TAUX_CES_DIRECTES, T)
+    blockServer("b20", indicators()$TAUX_PROVISIONNEMENT, T)
+    blockServer("b21", indicators()$TAUX_DEGRADATION, T)
+    blockServer("b22", indicators()$TAUX_VOL_TOP50_SUR_PFTGLOB, T)
+    blockServer("b23", indicators()$RATIO_PRETS_DEPOTS,T)
+    })
+  
+  
+  # SERVER/INDICATEURS D'APPETENCE ----
+  
+  # importer les parametres
+  appParams <- reactive({
+    
+    df <- read_excel(appParamsfilename,
+                     sheet = ifelse(input$isHolding == "Oui", "Holding",
+                                    input$selectpays)
+                     )
+    df
+    
+  })
+  
+  # importer les indicateurs d'apptence de chaque pays
+  # TRIGGER : rawData
+  observeEvent(AppetDatafilt(), {
+    
+    # mettre à jour plusiers points
+    updateTextInput(session, "appInd1", value = getAppData(AppetDatafilt(), "app1"))
+    updateTextInput(session, "appInd2", value = getAppData(AppetDatafilt(), "app2"))
+    updateTextInput(session, "appInd3", value = getAppData(AppetDatafilt(), "app3"))
+    updateTextInput(session, "appInd4", value = getAppData(AppetDatafilt(), "app4"))
+    updateTextInput(session, "appInd5", value = getAppData(AppetDatafilt(), "app5"))
+    updateTextInput(session, "appInd6", value = getAppData(AppetDatafilt(), "app6"))
+    updateTextInput(session, "appInd7", value = getAppData(AppetDatafilt(), "app7"))
+    updateTextInput(session, "appInd8", value = getAppData(AppetDatafilt(), "app8"))
+    updateTextInput(session, "appInd9", value = getAppData(AppetDatafilt(), "app9"))
+    updateTextInput(session, "appInd10", value = getAppData(AppetDatafilt(), "app10"))
+    updateTextInput(session, "appInd11", value = getAppData(AppetDatafilt(), "app11"))
+    updateTextInput(session, "appInd12", value = getAppData(AppetDatafilt(), "app12"))
+    updateTextInput(session, "appInd13", value = getAppData(AppetDatafilt(), "app13"))
+    updateTextInput(session, "appInd14", value = getAppData(AppetDatafilt(), "app14"))
+    updateTextInput(session, "appInd15", value = getAppData(AppetDatafilt(), "app15"))
+    updateTextInput(session, "appInd16", value = getAppData(AppetDatafilt(), "app16"))
+    updateTextInput(session, "appInd17", value = getAppData(AppetDatafilt(), "app17"))
+    updateTextInput(session, "appInd18", value = getAppData(AppetDatafilt(), "app18"))
+    updateTextInput(session, "appInd19", value = getAppData(AppetDatafilt(), "app19"))
+    updateTextInput(session, "appInd20", value = getAppData(AppetDatafilt(), "app20"))
+    updateTextInput(session, "appInd21", value = getAppData(AppetDatafilt(), "app21"))
+    updateTextInput(session, "appInd22", value = getAppData(AppetDatafilt(), "app22"))
+    updateTextInput(session, "appInd23", value = getAppData(AppetDatafilt(), "app23"))
+    updateTextInput(session, "appInd24", value = getAppData(AppetDatafilt(), "app24"))
+    updateTextInput(session, "appInd25", value = getAppData(AppetDatafilt(), "app25"))
+    updateTextInput(session, "appInd26", value = getAppData(AppetDatafilt(), "app26"))
+    updateTextInput(session, "appInd27", value = getAppData(AppetDatafilt(), "app27"))
+    updateTextInput(session, "appInd28", value = getAppData(AppetDatafilt(), "app28"))
+  })
+  
+  
+  # Actualiser les données "Depots"
+  observeEvent(depotsDatafilt(), {
+    cat(paste0("Montant depots:", depotsDatafilt()[1,3], "\n"))
+    updateNumericInput(session, "synth_depots", value = as.numeric(depotsDatafilt()[1,3]))
+  })
+  
+  
+  # afficher les parametres
+  output$paramsappetence <- renderTable({
+    appParams()
+  })
+  
+  observeEvent(input$btnappetence, {
+    shinyjs::show(id = "enter-indicateurs", anim = T)
+    updateActionButton(session, "btnappetence", label = "Modifier les indicateurs")
+  })
+  
+  observeEvent(input$effacer, {
+    shinyjs::reset(id = "enter-indicateurs")
+  })
+  
+  observeEvent(input$fermer, {
+    shinyjs::hide(id = "enter-indicateurs", anim = T)
+  })
+  
+  # Si l'utilisateur clique sur "enregistrer les informations", alors
+  
+  observeEvent(input$fermertable, {
+    shinyjs::toggle(id="show-datastored", anim = T)
+  })
+  
+  observeEvent(input$fermerongIndicateurs, {
+    shinyjs::toggle(id="show-indicateurs", anim = T)
+  })
+  
+  
+  # Enregistrer les données
+  # formattage des informations
+  formData <- reactive({
+    req(input$selectpays)
+    req(input$compiler)
+    #req(input$appInd1)
+    data <- data.frame(row_ID = UUIDgenerate(), 
+                       Arrete = input$datearrete, 
+                       Pays = input$selectpays, 
+                       app1 = input$appInd1,
+                       app2 = input$appInd2,
+                       app3 = input$appInd3,
+                       app4 = input$appInd4,
+                       app5 = input$appInd5,
+                       app6 = input$appInd6,
+                       app7 = input$appInd7,
+                       app8 = input$appInd8,
+                       app9 = input$appInd9,
+                       app10 = input$appInd10,
+                       app11 = input$appInd11,
+                       app12 = input$appInd12,
+                       app13 = input$appInd13,
+                       app14 = input$appInd14,
+                       app15 = input$appInd15,
+                       app16 = input$appInd16,
+                       app17 = input$appInd17,
+                       app18 = input$appInd18,
+                       app19 = input$appInd19,
+                       app20 = input$appInd20,
+                       app21 = input$appInd21,
+                       app22 = input$appInd22,
+                       app23 = input$appInd23,
+                       app24 = input$appInd24,
+                       app25 = input$appInd25,
+                       app26 = input$appInd26,
+                       app27 = input$appInd27,
+                       app28 = input$appInd28,
+                       R1 = indicators()$ENGAGEMENTS_DIRECTS,
+                       R2 = indicators()$ENGAGEMENTS_INDIRECTS,
+                       R3 = indicators()$PORTEFEUILLE_GLOBAL,
+                       R4 = indicators()$CREANCES_IMPAYES,
+                       R5 = indicators()$CREDIT_RESTRUCTURES,
+                       R6 = indicators()$PFT_DT_ENG_DIRECTS,
+                       R7 = indicators()$PFT_DT_ENG_INDIRECTS,
+                       R8 = indicators()$CREANCES_SOUFFRAN_DIRECTS,
+                       R9 = indicators()$PROVISIONS,
+                       R10 = indicators()$PROV_CREDS_RESTRUCTURES,
+                       R11 = indicators()$PROV_DT_INDIRECTS,
+                       R12 = indicators()$PROV_CREANCES_DT_DIRECTS,
+                       R13 = indicators()$CREANC_DIRECTS_SOUFFR_NETTES,
+                       R14 = indicators()$VOL_TOP50,
+                       R15 = indicators()$PRETS,
+                       R16 = indicators()$DEPOTS,
+                       R17 = indicators()$TAUX_CRED_RESTRUCTURE,
+                       R18 = indicators()$TAUX_DOUTEUX_DIRECTS,
+                       R19 = indicators()$TAUX_CES_DIRECTES,
+                       R20 = indicators()$TAUX_PROVISIONNEMENT,
+                       R21 = indicators()$TAUX_DEGRADATION,
+                       R22 = indicators()$TAUX_VOL_TOP50_SUR_PFTGLOB,
+                       R23 = indicators()$RATIO_PRETS_DEPOTS,
+                       stringsAsFactors = F)
+    data
+    
+  })
+  
+  # Si l'utilisateur clique sur "enregistrer les informations"
+  # afficher un pop-up de confirmation
+  observeEvent(input$saveIndicateurs, {
+    
+    showModal(
+      modalDialog(
+        title = h3("Vous êtes sur le point d'enregistrer des données"),
+        tagList(
+          h4("Etes-vous sûr(e) et certain(e)"),
+          helpText("Assurez-vous que les onglets 'Synthèse' et 'Indicateurs d'appétence' sont correctement remplis et fiables")
+          ),
+        footer = tagList(
+          actionButton("confirmadd","Confirmer", class="btn-success"),
+          actionButton("annuleradd","Annuler", class="btn btn-danger")
+        )))
+    
+  })
+  
+  # si l'utilisateur clique sur "Retirer une observation"
+  # afficher un pop-up de confirmation
+  observeEvent(input$retireobs, {
+    
+    # s'il ne sélectionne pas d'observation le pop-up ne s'active pas
+    if (is.null(input$datastored_rows_selected)){
+      cat("Aucune observation sélectionnée...\n")
+      showModal(modalAlertRow())
+    } else {
+      
+      showModal(
+        modalDialog(
+          title = h3("Vous êtes sur le point d'effacer des données"),
+          tagList(
+            h4("Etes-vous sûr(e) et certain(e)"),
+            helpText("Assurez-vous d'avoir sélectionner des observations désirées dans le tableau")
+          ),
+          footer = tagList(
+            actionButton("confirmdrop","Confirmer", class="btn-success"),
+            actionButton("annulerdrop","Annuler", class="btn btn-danger")
+          )))
+    }
+    
+  })
+  
+  observeEvent(input$confirmadd,{
+    
+    removeModal()
+    #cat("Data to be stored:", formData(), "\n")
+    print(formData())
+    saveData(formData(), sqlitePath, table)
+    
+  })
+  
+  observeEvent(input$annuleradd, {
+    removeModal()
+  })
+  
+  observeEvent(input$confirmdrop,{
+    #cat("Data to be stored:", formData(), "\n")
+    # s'il existe des observations
+    
+    if (is.null(input$datastored_rows_selected)){
+      showModal(modalAlertRow())
+    } else {
+      cat('These rows were selected:\n\n')
+      cat(input$datastored_rows_selected, sep = ', ')
+      deleteData(input$datastored_rows_selected, 
+                 sqlitePath, table)
+      removeModal()
+    }
+    
+    # req(input$datastored_rows_selected)
+    # 
+    # if (length(input$datastored_rows_selected) > 0){
+    #   # effacer l'observation
+    #   cat('These rows were selected:\n\n')
+    #   cat(input$datastored_rows_selected, sep = ', ')
+    #   deleteData(input$datastored_rows_selected, 
+    #              sqlitePath, table)
+    #   removeModal()
+    # } else {
+    #   
+    #   showModal(
+    #     # si on appuie sur delete sans selectionner de lignes
+    #     if (length(input$datastored_rows_selected) < 1){
+    #       modalDialog(
+    #         title = "warning",
+    #         paste("Please select row(s)."),
+    #         easyClose = TRUE
+    #       )
+    #     }
+    #   )  
+    #   
+    # }
+    
+    
+    
+  })
+  
+  observeEvent(input$annulerdrop, {
+    removeModal()
+  })
+  
+  
+  
+  output$datastored <- renderDataTable({
+
+    # afficher la table que lorsque:
+    input$confirmadd
+    input$confirmdrop
+    input$saveIndicateurs
+    input$fermertable
+    DT::datatable(
+      loadData(sqlitePath, table),
+      options = list(scrollY = "100%",
+                     scrollX = "100%",
+                     deferRender = TRUE
+      ), 
+      rownames = FALSE
+    )
+    
+  })
+  
+  observeEvent(input$fermertable, {
+    shinyjs::toggle(id = "show-data", anim = T)
+  })
+  
+  observeEvent(input$compiler, {
+    shinyjs::hide(id = "enter-indicateurs", anim = T)
+    shinyjs::show(id = "show-indicateurs", anim = T)
+    
+    # SERVER/INDICATEURS D'APPETENCE/CALCULER LES INDICATEURS ----
+    appetenceIndicateurServer("app1",input$appInd1, "<", appParams())
+    appetenceIndicateurServer("app2",input$appInd2, "<", appParams())
+    appetenceIndicateurServer("app3",input$appInd3, "<", appParams())
+    appetenceIndicateurServer("app4",input$appInd4, "<", appParams())
+    appetenceIndicateurServer("app5",input$appInd5, "<", appParams())
+    appetenceIndicateurServer("app6",input$appInd6, "<", appParams())
+    appetenceIndicateurServer("app7",input$appInd7, ">", appParams())
+    appetenceIndicateurServer("app8",input$appInd8, ">", appParams())
+    appetenceIndicateurServer("app9",input$appInd9, "<", appParams())
+    appetenceIndicateurServer("app10",input$appInd10, "<", appParams())
+    appetenceIndicateurServer("app11",input$appInd11, "<", appParams())
+    appetenceIndicateurServer("app12",input$appInd12, "<", appParams())
+    appetenceIndicateurServer("app13",input$appInd13, "<", appParams())
+    appetenceIndicateurServer("app14",input$appInd14, "<", appParams())
+    appetenceIndicateurServer("app15",input$appInd15, "<", appParams())
+    appetenceIndicateurServer("app16",input$appInd16, "<", appParams())
+    appetenceIndicateurServer("app17",input$appInd17, "<", appParams())
+    appetenceIndicateurServer("app18",input$appInd18, "<", appParams())
+    appetenceIndicateurServer("app19",input$appInd19, "<", appParams())
+    appetenceIndicateurServer("app20",input$appInd20, "<", appParams())
+    appetenceIndicateurServer("app21",input$appInd21, "<", appParams())
+    appetenceIndicateurServer("app22",input$appInd22, "<", appParams())
+    appetenceIndicateurServer("app23",input$appInd23, "<", appParams())
+    appetenceIndicateurServer("app24",input$appInd24, "<", appParams())
+    appetenceIndicateurServer("app25",input$appInd25, "<", appParams())
+    appetenceIndicateurServer("app26",input$appInd26, "<", appParams())
+    appetenceIndicateurServer("app27",input$appInd27, "<", appParams())
+    appetenceIndicateurServer("app28",input$appInd28, "<", appParams())
+
+  })
+  
+  # 
+  observeEvent(input$qualite, {
+    shinyjs::toggle(id = "show-indicateurs-qualite", anim = T)
+  })
+  observeEvent(input$concentration, {
+    shinyjs::toggle(id = "show-indicateurs-concentration", anim = T)
+  })
+  observeEvent(input$pretsinterbancaires, {
+    shinyjs::toggle(id = "show-indicateurs-pretsinterbancaires", anim = T)
+  })
+  observeEvent(input$portefeuilletitre, {
+    shinyjs::toggle(id = "show-indicateurs-portefeuilletitre", anim = T)
+  })
+  observeEvent(input$risquepays, {
+    shinyjs::toggle(id = "show-indicateurs-risquepays", anim = T)
+  })
+  observeEvent(input$fondspropres, {
+    shinyjs::toggle(id = "show-indicateurs-fondspropres", anim = T)
+  })
+  
+  
+  # Voir la liste des pays disponibles
+  observeEvent(input$listPays, {
+    
+    showModal(
+      modalDialog(
+        title = "Liste des pays disponibles",
+        if (!is.null(rawData())){
+          paste0(unique(rawData()$inputData$Pays), collapse = ", ")
+        }, easyClose = T
+      )
+    )
+  })
+  
+  # SERVER/DETAILS/50 PLUS GROS ----
+  cinqTab <- reactive({
+    df <- cinquante(cleanedData())
+    df
+  })
+  
+  summCinqTab <- reactive({
+    df <- concentrationRate(cleanedData())
+    print(df)
+    df
+  })
+  
+  observeEvent(inputDatafilt(), {
+    
+    # SECTION : table des cinquantes plus gros
+    output$plusgrostable <- renderDataTable(
+      
+      datatable(data = cinqTab()$top.df,
+                options = list(scrollY = "100%",
+                               scrollX = "100%",
+                               deferRender = TRUE)) %>%
+        formatPercentage(columns = c("Poids"), digits = 2) %>%
+        formatCurrency(columns = c("TRESORERIE","SIGNATURE","TOTAL_ENG"), 
+                       currency = " ", digits = 0,  mark = " ", before = F)
+    )
+    
+    # exporter en csv
+    output$downloadcinquante <- downloadHandler(
+      
+      filename <- "cinquante.csv",
+      content <- function(file){
+        write.csv2(cinqTab()$top.df, file, row.names = F)
+      }
+    )
+    
+    
+    output$summarycinquante <- renderDataTable(
+      
+      datatable(data = summCinqTab(),
+                options = list(scrollY = "100%",
+                               scrollX = "100%",
+                               deferRender = TRUE, 
+                               searching = FALSE,
+                               paging = FALSE)) %>%
+        formatPercentage(columns = c("Poids"), digits = 2) %>%
+        formatCurrency(columns = c("TRESORERIE","SIGNATURE","TOTAL_ENG"), 
+                       currency = " ", digits = 0,  mark = " ", before = F)
+    )
+    
+    output$downloadsummarycinquante <- downloadHandler(
+      
+      filename <- "cinquanteSummary.csv",
+      content <- function(file){
+        write.csv2(summCinqTab(), file, row.names = F)
+      }
+    )
+    
+    output$bar_cinquante <- 
+    #   renderBillboarder({
+    # 
+    #   summCinqTab() %>%
+    #     select(c(Pays, Poids)) %>%
+    #     billboarder(data = .) %>%
+    #     bb_aes(Pays, Poids) %>%
+    #     bb_piechart() %>%
+    #     bb_legend(position = 'right')
+    # 
+    # })
+    
+    output$pie_cinquant <- renderHighchart({
+      
+      highchart() %>%
+        hc_title(text = "Poids des 50 plus gros sur le portefeuille") %>%
+        hc_add_series(data = summCinqTab()$Poids, type="column") %>%
+        hc_xAxis(categories = summCinqTab()$Pays)
+    })
+  })
+  
+  
+  # SERVER/DETAILS/HORSBILAN ----
+  
+  # je renseigne le montant des avals de traite:
+  # note: ce montant s'actualise automatiquement mais il est possible de modifier
+  
+  hbTab <- reactive({
+    df <- horsbilan(cleanedData(), dfTraite = traiteDatafilt())
+    df[,2:5] = apply(df[,2:5], 2, as.numeric)
+    print(df)
+    df
+  })
+  
+  summhbTab <- reactive({
+    df <- data.frame(Pays = hbTab()$Pays,
+                     Montant = rowSums(hbTab()[,2:5]))
+    print(df)
+    df
+  })
+  
+  observeEvent(inputDatafilt(), {
+    
+    # SECTION : table de hors bilan
+    output$horsbilantable <- renderDataTable(
+      
+      datatable(data = hbTab(),
+                options = list(scrollY = "100%",
+                               scrollX = "100%",
+                               deferRender = TRUE)) %>%
+        formatCurrency(columns = c("Avals de traite","Cautions","Credits Documentaires", "Enagements confirmes"), 
+                       currency = " ", digits = 0,  mark = " ", before = F)
+    )
+    
+    # exporter en csv
+    output$downloadhorsbilan <- downloadHandler(
+      
+      filename <- "Horsbilan.csv",
+      content <- function(file){
+        write.csv2(hbTab(), file, row.names = F)
+      }
+    )
+    
+    
+    output$summaryhorsbilan <- renderDataTable(
+      
+      datatable(data = summhbTab(),
+                options = list(scrollY = "100%",
+                               scrollX = "100%",
+                               deferRender = TRUE, 
+                               searching = FALSE,
+                               paging = FALSE)) %>%
+        formatCurrency(columns = c("Montant"), 
+                       currency = " ", digits = 0,  mark = " ", before = F)
+    )
+    
+    output$downloadsummaryhorsbilan <- downloadHandler(
+      
+      filename <- "horsbilansummary.csv",
+      content <- function(file){
+        write.csv2(summhbTab(), file, row.names = F)
+      }
+    )
+    
+    output$pie_horsbilan <- renderBillboarder({
+
+      summhbTab() %>%
+          billboarder(data = .) %>%
+          bb_aes(Pays, Montant) %>%
+          bb_piechart() %>%
+          bb_legend(position = 'right')
+
+      })
+      
+  })
+  
+  
+  # SERVER/DETAILS/DECLASSEMENT ----
+  declassTab <- reactive({
+    declassement(cleanedData(), input$datearrete)
+  })
+  
+  
+  observeEvent(inputDatafilt(), {
+    
+    # 
+    output$declasstable <- renderDataTable({
+      datatable(data = declassTab(),
+                options = list(scrollY = "100%",
+                               scrollX = "100%",
+                               deferRender = TRUE, 
+                               searching = FALSE,
+                               paging = FALSE)) %>%
+        formatPercentage(columns = c("TauxProv", "PartN", "PartEncours"), digits = 2) %>%
+        formatCurrency(columns = c("EncoursCDL", "PROVISIONS"), 
+                       currency = " ", digits = 0,  mark = " ", before = F)
+      
+    })
+    
+    # exporter la table en csv
+    output$downloaddeclasstable <- downloadHandler(
+      
+      filename <- "declassement.csv",
+      content <- function(file){
+        write.csv2(declassTab(), file, row.names = F)
+      }
+    )
+    
+  })
+  
+  
+  # SERVER/SITUATION DU PORTEFEUILLE ----
+  observeEvent(input$situationnotation,{
+    shinyjs::toggle(id = "situation-notation", anim = T)
+  })
+  observeEvent(input$situationsegment,{
+    shinyjs::toggle(id = "situation-segment", anim = T)
+  })
+  
+  observeEvent(input$situationbceao,{
+    shinyjs::toggle(id = "situation-bceao", anim = T)
+  })
+  
+  # créer la table de BCEAO (reactive)
+  bceaoTab <- reactive({
+    funcBceao(cleanedData())
+  })
+  
+  
+  observeEvent(inputDatafilt(), {
+    
+    # renvoyer la table des indicateurs
+    output$bceaotable <- renderDataTable({
+      datatable(data = bceaoTab(),
+                options = list(scrollY = "100%",
+                               scrollX = "100%",
+                               deferRender = TRUE, 
+                               searching = FALSE,
+                               paging = FALSE)) %>%
+        formatPercentage(columns = c("TauxProv", "PartTotal", "TauxDegradation"), digits = 2) %>%
+        formatCurrency(columns = c("N","TRESO","SIGNAT",  "TOTAL", "CESBilan", "SainBilan",
+                                   "SainHorsbilan", "DOUTEUXHorsbilan", "PROVISIONS"), 
+                       currency = " ", digits = 0,  mark = " ", before = F)
+      
+    })
+    
+    # exporter la table
+    output$downlBceao <- downloadHandler(
+      
+      filename <- "bceao.csv",
+      content <- function(file){
+        write.csv2(bceaoTab(), file, row.names = F)
+      }
+    )
+    
+    # 
+    
+    
+  })
+  
+  
+  
+  
+  
+}
+
+# stars <- data.frame(
+#   package = c("billboarder", "ggiraph", "officer", "shinyWidgets", "visNetwork"),
+#   stars = c(9, 177, 43, 44, 169)
+# )
+# 
+# # Default
+# billboarder() %>% 
+#   bb_piechart(data = stars)
+# 
+# # Explicit mapping
+# billboarder() %>% 
+#   bb_piechart(data = stars, bbaes(package, stars))
+# 
+# # Other way to specify mapping
+# billboarder(data = stars) %>% 
+#   bb_aes(package, stars) %>% 
+#   bb_piechart()
+
+shinyApp(ui, server)
+
+# d <- concentrationRate(datatest) %>%
+#   select(c(Pays, Poids))
+# 
+#   billboarder() %>%
+#   bb_piechart(data = d, bbaes(Pays, Poids))
+
+
+
+
+
+
+##### ----
+
+# sheetname = "Sénégal"
+# filepath <- "Indicateursdappetences.xlsx"
+# df <- read_excel(filepath,
+#                  sheet = sheetname
+#                  )
+
+# if (interactive()) {
+#   
+#   # basic example
+#   shinyApp(
+#     ui = fluidPage(
+#       selectInput("variable", "Variable:",
+#                   c("Cylinders" = "cyl",
+#                     "Transmission" = "am",
+#                     "Gears" = "gear")),
+#       tableOutput("data")
+#     ),
+#     server = function(input, output) {
+#       output$data <- renderTable({
+#         mtcars[, c("mpg", input$variable), drop = FALSE]
+#       }, rownames = TRUE)
+#     }
+#   )
+#   
+#   # demoing group support in the `choices` arg
+#   shinyApp(
+#     ui = fluidPage(
+#       selectInput("state", "Choose a state:",multiple = T,
+#                   list(`East Coast` = list("NY", "NJ", "CT"),
+#                        `West Coast` = list("WA", "OR", "CA"),
+#                        `Midwest` = list("MN", "WI", "IA"))
+#       ),
+#       textOutput("result")
+#     ),
+#     server = function(input, output) {
+#       output$result <- renderText({
+#         paste(split(input$state))
+#         cat(input$state)
+#       })
+#     }
+#   )
+# }
+
+
+
