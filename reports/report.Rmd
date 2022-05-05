@@ -1,0 +1,40 @@
+---
+title: "Note méthodologique de développement des modèles d'écoulement des dépôts à vue"
+author: "John Doe"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+    
+params:
+  intro: NA
+  description: NA
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+`r params$intro`
+
+
+# Description des données
+`r paste(params$description)`
+
+# Analyse exploratoire des données
+
+# Traitement des données
+
+## Qualité des données
+
+## Nettoyage des données
+
+# Sélection des variables
+
+# Estimation du modèle
+
+# Validation des résultats
+
+# Application
+
